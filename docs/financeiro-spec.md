@@ -14,8 +14,7 @@ Centralizar as entradas e saídas da cafeteria e floricultura, mantendo o saldo 
 - Métodos e destinos obrigatórios:
   - Dinheiro → Caixa
   - Pix → Banco
-  - Crédito → Banco
-  - Débito → Banco
+  - Cartão → Banco
   - Outro → pessoa escolhe Caixa ou Banco
 
 ### Consultas
@@ -37,10 +36,10 @@ Tabela `financial_entries`:
 | `description` | text | obrigatório |
 | `category` | text | opcional |
 | `amount` | numeric(12,2) | maior que zero |
-| `payment_method` | text | Dinheiro, Pix, Crédito, Débito ou Outro |
+| `payment_method` | text | Dinheiro, Pix, Cartão ou Outro |
 | `destination` | text | Caixa ou Banco |
 
-Regra de integridade: Dinheiro deve usar Caixa; Pix, Crédito e Débito devem usar Banco; Outro pode usar ambos.
+Regra de integridade: Dinheiro deve usar Caixa; Pix e Cartão devem usar Banco; Outro pode usar ambos.
 
 ## Fora do escopo deste MVP
 
