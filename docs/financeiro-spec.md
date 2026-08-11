@@ -9,6 +9,7 @@ Centralizar as entradas e saídas da cafeteria e floricultura, mantendo o saldo 
 ### Lançamentos
 
 - A pessoa registra um recebimento ou pagamento em poucos passos.
+- A data do lançamento é editável e permite registrar movimentações retroativas.
 - Um lançamento pode ser repetido em sequência: por exemplo, "Vendas do balcão" por Pix e depois por Dinheiro, sem trocar de tela.
 - Métodos e destinos obrigatórios:
   - Dinheiro → Caixa
