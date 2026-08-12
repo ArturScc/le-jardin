@@ -5,7 +5,7 @@ create table public.financial_entries (
   type text not null check (type in ('recebimento', 'pagamento')),
   description text not null check (char_length(trim(description)) > 0),
   category text,
-  amount numeric(12, 2) not null check (amount > 0),
+  amount numeric(12, 2) not null check (amount >= 0),
   payment_method text not null check (payment_method in ('Dinheiro', 'Pix', 'Cartão', 'Outro')),
   destination text not null check (destination in ('Caixa', 'Banco')),
   constraint financial_entries_method_destination_check check (
