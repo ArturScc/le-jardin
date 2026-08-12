@@ -127,7 +127,7 @@ export default function Home() {
   const pageTitle: Record<Screen, string> = { lancamentos: "Lançamentos", recebimentos: "Recebimentos", pagamentos: "Pagamentos", saldo: "Saldo", graficos: "Gráficos" };
   return <main className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><img src="/assets/logo.svg" alt="" /><span>Le Jardin</span></div><div className="business">CAFÉ & FLORES</div>
+      <div className="brand"><img src="/assets/logo_color.svg" alt="" /><span>Le Jardin</span></div><div className="business">CAFÉ & FLORES</div>
       <nav aria-label="Navegação principal">
         <NavButton active={screen === "lancamentos"} icon="＋" label="Lançamentos" onClick={() => setScreen("lancamentos")} />
         <NavButton active={screen === "recebimentos"} image="/assets/recebimento.svg" label="Recebimentos" onClick={() => setScreen("recebimentos")} />
@@ -181,11 +181,44 @@ function ExportButton({ entries, title }: { entries: Entry[]; title: string }) {
       XLSX.writeFile(book, `${fileName}.xlsx`);
     } else {
       const { jsPDF } = await import("jspdf");
-      const document = new jsPDF();
-      document.setFontSize(16); document.text("Le Jardin - Financeiro", 14, 18);
-      document.setFontSize(10); document.text(`Exportação: ${title}`, 14, 25);
-      let y = 35;
-      rows.forEach((row, index) => { if (y > 278) { document.addPage(); y = 18; } document.text(`${row.Data} | ${row.Descrição} | ${row.Método} | ${row.Destino} | ${money.format(row.Valor)}`, 14, y, { maxWidth: 180 }); y += 9; if (index === rows.length - 1) document.setFontSize(8); });
+      const document = new jsPDF({ unit: "mm", format: "a4" });
+      const titleLabel = title === "recebimentos" ? "Recebimentos" : title === "pagamentos" ? "Pagamentos" : "Movimentações";
+      const receipts = entries.filter((entry) => entry.type === "recebimento").reduce((sum, entry) => sum + entry.amount, 0);
+      const payments = entries.filter((entry) => entry.type === "pagamento").reduce((sum, entry) => sum + entry.amount, 0);
+      const sortedDates = entries.map((entry) => entry.date).sort();
+      const range = sortedDates.length ? `${formatDate(sortedDates[0])} a ${formatDate(sortedDates[sortedDates.length - 1])}` : "Sem lançamentos";
+      const left = 17; const right = 193; const columns = { date: 17, description: 42, method: 108, in: 140, out: 167 };
+      function reportHeader() {
+        document.setTextColor(39, 53, 44); document.setFont("helvetica", "bold"); document.setFontSize(15); document.text("LE JARDIN", left, 18);
+        document.setFont("helvetica", "normal"); document.setFontSize(7); document.setTextColor(112, 118, 110); document.text("CAFÉ & FLORES", left, 22.5);
+        document.setFont("helvetica", "bold"); document.setTextColor(39, 53, 44); document.setFontSize(12); document.text("RELATÓRIO FINANCEIRO", right, 18, { align: "right" });
+        document.setFont("helvetica", "normal"); document.setFontSize(8); document.setTextColor(112, 118, 110); document.text(`${titleLabel} | ${range}`, right, 22.5, { align: "right" });
+        document.setDrawColor(78, 96, 68); document.setLineWidth(.55); document.line(left, 27, right, 27);
+      }
+      function tableHeader(y: number) {
+        document.setFont("helvetica", "bold"); document.setFontSize(7); document.setTextColor(78, 96, 68);
+        document.text("DATA", columns.date, y); document.text("DESCRIÇÃO", columns.description, y); document.text("MÉTODO / DESTINO", columns.method, y); document.text("ENTRADAS", columns.in + 19, y, { align: "right" }); document.text("SAÍDAS", columns.out + 19, y, { align: "right" });
+        document.setDrawColor(80, 80, 80); document.setLineWidth(.25); document.line(left, y + 3, right, y + 3);
+      }
+      reportHeader();
+      document.setFillColor(242, 244, 238); document.roundedRect(left, 33, right - left, 24, 2, 2, "F");
+      document.setTextColor(112, 118, 110); document.setFont("helvetica", "bold"); document.setFontSize(7); document.text("ENTRADAS", left + 8, 40); document.text("SAÍDAS", left + 65, 40); document.text("SALDO DO PERÍODO", left + 122, 40);
+      document.setTextColor(39, 53, 44); document.setFont("helvetica", "normal"); document.setFontSize(13); document.text(money.format(receipts), left + 8, 49); document.text(money.format(payments), left + 65, 49); document.text(money.format(receipts - payments), left + 122, 49);
+      let y = 68; tableHeader(y); y += 10;
+      entries.forEach((entry) => {
+        const description = document.splitTextToSize(entry.description, 61) as string[];
+        const height = Math.max(8, description.length * 4.2 + 3);
+        if (y + height > 279) { document.addPage(); reportHeader(); y = 38; tableHeader(y); y += 10; }
+        document.setFont("helvetica", "normal"); document.setFontSize(8); document.setTextColor(45, 50, 45);
+        document.text(formatDate(entry.date), columns.date, y); document.text(description, columns.description, y); document.text(`${entry.method}\n${entry.destination}`, columns.method, y, { lineHeightFactor: 1.25 });
+        if (entry.type === "recebimento") { document.setTextColor(54, 104, 58); document.text(money.format(entry.amount), columns.in + 19, y, { align: "right" }); } else { document.setTextColor(139, 82, 60); document.text(money.format(entry.amount), columns.out + 19, y, { align: "right" }); }
+        document.setDrawColor(210, 210, 205); document.setLineWidth(.15); document.line(left, y + height - 2, right, y + height - 2); y += height;
+      });
+      if (y > 270) { document.addPage(); reportHeader(); y = 42; }
+      document.setDrawColor(39, 53, 44); document.setLineWidth(.55); document.line(left, y + 1, right, y + 1);
+      document.setFont("helvetica", "bold"); document.setFontSize(9); document.setTextColor(39, 53, 44); document.text("SALDO", columns.out + 19, y + 8, { align: "right" }); document.text(money.format(receipts - payments), right, y + 8, { align: "right" });
+      const pages = document.getNumberOfPages();
+      for (let page = 1; page <= pages; page += 1) { document.setPage(page); document.setFont("helvetica", "normal"); document.setFontSize(7); document.setTextColor(112, 118, 110); document.text(`Gerado em ${new Date().toLocaleDateString("pt-BR")} | Página ${page} de ${pages}`, right, 289, { align: "right" }); }
       document.save(`${fileName}.pdf`);
     }
     setOpen(false);
