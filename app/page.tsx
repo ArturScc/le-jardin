@@ -187,36 +187,51 @@ function ExportButton({ entries, title }: { entries: Entry[]; title: string }) {
       const payments = entries.filter((entry) => entry.type === "pagamento").reduce((sum, entry) => sum + entry.amount, 0);
       const sortedDates = entries.map((entry) => entry.date).sort();
       const range = sortedDates.length ? `${formatDate(sortedDates[0])} a ${formatDate(sortedDates[sortedDates.length - 1])}` : "Sem lançamentos";
-      const left = 17; const right = 193; const columns = { date: 17, description: 42, method: 108, in: 140, out: 167 };
-      function reportHeader() {
-        document.setTextColor(39, 53, 44); document.setFont("helvetica", "bold"); document.setFontSize(15); document.text("LE JARDIN", left, 18);
-        document.setFont("helvetica", "normal"); document.setFontSize(7); document.setTextColor(112, 118, 110); document.text("CAFÉ & FLORES", left, 22.5);
-        document.setFont("helvetica", "bold"); document.setTextColor(39, 53, 44); document.setFontSize(12); document.text("RELATÓRIO FINANCEIRO", right, 18, { align: "right" });
-        document.setFont("helvetica", "normal"); document.setFontSize(8); document.setTextColor(112, 118, 110); document.text(`${titleLabel} | ${range}`, right, 22.5, { align: "right" });
-        document.setDrawColor(78, 96, 68); document.setLineWidth(.55); document.line(left, 27, right, 27);
+      const left = 15; const right = 195; const bottom = 278; const columns = { description: 27, method: 111, in: 159, out: 194 };
+      const groupedEntries = [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).reduce((groups, entry) => { const current = groups.get(entry.date) ?? []; current.push(entry); groups.set(entry.date, current); return groups; }, new Map<string, Entry[]>());
+      const methodTotals = methods.map((method) => ({ method, receipts: entries.filter((entry) => entry.method === method && entry.type === "recebimento").reduce((sum, entry) => sum + entry.amount, 0), payments: entries.filter((entry) => entry.method === method && entry.type === "pagamento").reduce((sum, entry) => sum + entry.amount, 0) }));
+      let logoData = "";
+      try { const response = await fetch("/icon-192.png"); const blob = await response.blob(); logoData = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsDataURL(blob); }); } catch { logoData = ""; }
+      function reportHeader(firstPage: boolean) {
+        if (logoData) document.addImage(logoData, "PNG", left, 14, 10, 10);
+        document.setTextColor(39, 53, 44); document.setFont("helvetica", "bold"); document.setFontSize(14); document.text("LE JARDIN", left + 13, 18.5);
+        document.setFont("helvetica", "normal"); document.setFontSize(7); document.setTextColor(112, 118, 110); document.text("CAFÉ & FLORES", left + 13, 22.5);
+        document.setFont("helvetica", "bold"); document.setTextColor(39, 53, 44); document.setFontSize(11); document.text("RELATÓRIO FINANCEIRO", right, 18.5, { align: "right" });
+        document.setFont("helvetica", "normal"); document.setFontSize(7.5); document.setTextColor(112, 118, 110); document.text(`${titleLabel} | ${range} | ${entries.length} lançamentos`, right, 22.5, { align: "right" });
+        document.setDrawColor(78, 96, 68); document.setLineWidth(.5); document.line(left, 28, right, 28);
+        if (!firstPage) { document.setFont("helvetica", "bold"); document.setFontSize(8); document.setTextColor(78, 96, 68); document.text("DETALHAMENTO", left, 38); }
       }
       function tableHeader(y: number) {
         document.setFont("helvetica", "bold"); document.setFontSize(7); document.setTextColor(78, 96, 68);
-        document.text("DATA", columns.date, y); document.text("DESCRIÇÃO", columns.description, y); document.text("MÉTODO / DESTINO", columns.method, y); document.text("ENTRADAS", columns.in + 19, y, { align: "right" }); document.text("SAÍDAS", columns.out + 19, y, { align: "right" });
-        document.setDrawColor(80, 80, 80); document.setLineWidth(.25); document.line(left, y + 3, right, y + 3);
+        document.text("DESCRIÇÃO", columns.description, y); document.text("MÉTODO / DESTINO", columns.method, y); document.text("ENTRADAS", columns.in, y, { align: "right" }); document.text("SAÍDAS", columns.out, y, { align: "right" });
+        document.setDrawColor(110, 117, 108); document.setLineWidth(.25); document.line(left, y + 3, right, y + 3);
       }
-      reportHeader();
-      document.setFillColor(242, 244, 238); document.roundedRect(left, 33, right - left, 24, 2, 2, "F");
-      document.setTextColor(112, 118, 110); document.setFont("helvetica", "bold"); document.setFontSize(7); document.text("ENTRADAS", left + 8, 40); document.text("SAÍDAS", left + 65, 40); document.text("SALDO DO PERÍODO", left + 122, 40);
-      document.setTextColor(39, 53, 44); document.setFont("helvetica", "normal"); document.setFontSize(13); document.text(money.format(receipts), left + 8, 49); document.text(money.format(payments), left + 65, 49); document.text(money.format(receipts - payments), left + 122, 49);
-      let y = 68; tableHeader(y); y += 10;
-      entries.forEach((entry) => {
-        const description = document.splitTextToSize(entry.description, 61) as string[];
-        const height = Math.max(8, description.length * 4.2 + 3);
-        if (y + height > 279) { document.addPage(); reportHeader(); y = 38; tableHeader(y); y += 10; }
-        document.setFont("helvetica", "normal"); document.setFontSize(8); document.setTextColor(45, 50, 45);
-        document.text(formatDate(entry.date), columns.date, y); document.text(description, columns.description, y); document.text(`${entry.method}\n${entry.destination}`, columns.method, y, { lineHeightFactor: 1.25 });
-        if (entry.type === "recebimento") { document.setTextColor(54, 104, 58); document.text(money.format(entry.amount), columns.in + 19, y, { align: "right" }); } else { document.setTextColor(139, 82, 60); document.text(money.format(entry.amount), columns.out + 19, y, { align: "right" }); }
-        document.setDrawColor(210, 210, 205); document.setLineWidth(.15); document.line(left, y + height - 2, right, y + height - 2); y += height;
-      });
-      if (y > 270) { document.addPage(); reportHeader(); y = 42; }
-      document.setDrawColor(39, 53, 44); document.setLineWidth(.55); document.line(left, y + 1, right, y + 1);
-      document.setFont("helvetica", "bold"); document.setFontSize(9); document.setTextColor(39, 53, 44); document.text("SALDO", columns.out + 19, y + 8, { align: "right" }); document.text(money.format(receipts - payments), right, y + 8, { align: "right" });
+      function newPage() { document.addPage(); reportHeader(false); let pageY = 47; tableHeader(pageY); return pageY + 8; }
+      reportHeader(true);
+      document.setFillColor(242, 244, 238); document.roundedRect(left, 35, right - left, 24, 2, 2, "F");
+      document.setTextColor(112, 118, 110); document.setFont("helvetica", "bold"); document.setFontSize(7); document.text("ENTRADAS", left + 8, 42); document.text("SAÍDAS", left + 68, 42); document.text("SALDO DO PERÍODO", left + 128, 42);
+      document.setFont("helvetica", "normal"); document.setFontSize(13); document.setTextColor(54, 104, 58); document.text(money.format(receipts), left + 8, 51); document.setTextColor(139, 82, 60); document.text(money.format(payments), left + 68, 51); document.setTextColor(receipts - payments >= 0 ? 54 : 139, receipts - payments >= 0 ? 104 : 82, receipts - payments >= 0 ? 58 : 60); document.text(money.format(receipts - payments), left + 128, 51);
+      document.setFont("helvetica", "bold"); document.setFontSize(8); document.setTextColor(78, 96, 68); document.text("RESUMO POR MÉTODO", left, 69);
+      document.setFillColor(249, 249, 246); document.roundedRect(left, 73, right - left, 17, 1.5, 1.5, "F");
+      methodTotals.forEach((item, index) => { const x = left + 8 + index * 45; document.setFont("helvetica", "bold"); document.setFontSize(7); document.setTextColor(78, 96, 68); document.text(item.method.toUpperCase(), x, 79); document.setFont("helvetica", "normal"); document.setFontSize(7); document.setTextColor(54, 104, 58); document.text(`+ ${money.format(item.receipts)}`, x, 85); document.setTextColor(139, 82, 60); document.text(`- ${money.format(item.payments)}`, x + 22, 85); });
+      let y = 102; document.setFont("helvetica", "bold"); document.setFontSize(8); document.setTextColor(78, 96, 68); document.text("DETALHAMENTO", left, y); y += 9; tableHeader(y); y += 8;
+      for (const [date, dateEntries] of groupedEntries) {
+        const drawDate = () => { document.setFillColor(233, 237, 228); document.roundedRect(left, y - 4, right - left, 6.5, 1, 1, "F"); document.setFont("helvetica", "bold"); document.setFontSize(7); document.setTextColor(78, 96, 68); document.text(formatDate(date).toUpperCase(), left + 3, y); y += 9; };
+        if (y + 16 > bottom) y = newPage();
+        drawDate();
+        for (const entry of dateEntries) {
+          const description = document.splitTextToSize(entry.description, 78) as string[];
+          const height = Math.max(7.5, description.length * 3.9 + 2.8);
+          if (y + height > bottom) { y = newPage(); drawDate(); }
+          document.setFont("helvetica", "normal"); document.setFontSize(8.4); document.setTextColor(45, 50, 45); document.text(description, columns.description, y);
+          document.setFontSize(7.6); document.setTextColor(92, 100, 92); document.text(`${entry.method} · ${entry.destination}`, columns.method, y);
+          if (entry.type === "recebimento") { document.setFont("helvetica", "bold"); document.setTextColor(54, 104, 58); document.text(money.format(entry.amount), columns.in, y, { align: "right" }); } else { document.setFont("helvetica", "bold"); document.setTextColor(139, 82, 60); document.text(money.format(entry.amount), columns.out, y, { align: "right" }); }
+          document.setDrawColor(220, 220, 215); document.setLineWidth(.12); document.line(left, y + height - 2, right, y + height - 2); y += height;
+        }
+        y += 2;
+      }
+      if (y + 17 > bottom) { document.addPage(); reportHeader(false); y = 47; }
+      document.setFillColor(52, 68, 53); document.roundedRect(left, y, right - left, 12, 1.5, 1.5, "F"); document.setFont("helvetica", "bold"); document.setFontSize(8); document.setTextColor(234, 240, 229); document.text("SALDO FINAL DO PERÍODO", left + 5, y + 7.5); document.setFontSize(10); document.text(money.format(receipts - payments), right - 5, y + 7.7, { align: "right" });
       const pages = document.getNumberOfPages();
       for (let page = 1; page <= pages; page += 1) { document.setPage(page); document.setFont("helvetica", "normal"); document.setFontSize(7); document.setTextColor(112, 118, 110); document.text(`Gerado em ${new Date().toLocaleDateString("pt-BR")} | Página ${page} de ${pages}`, right, 289, { align: "right" }); }
       document.save(`${fileName}.pdf`);
