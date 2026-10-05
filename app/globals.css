@@ -31,3 +31,7 @@
 .entry-area svg{width:13px;height:13px;flex:none;color:var(--moss)}
 .filters.area-only{justify-content:flex-start;margin-top:2px}
 @media(max-width:800px){.area-option{min-height:64px}.filters select[aria-label="Área"]{grid-column:1/-1}}
+
+.batch-line{grid-template-columns:32px minmax(0,1fr) 44px}
+.remove-line{display:grid;place-items:center;width:44px;height:44px;padding:0}
+.remove-line svg{width:18px;height:18px}
