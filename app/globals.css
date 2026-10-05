@@ -19,3 +19,15 @@
 }
 
 .brand img{filter:none}
+
+.area-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.area-option{min-height:58px;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:14px;font-weight:bold}
+.area-option svg{width:22px;height:22px;flex:none;color:var(--moss)}
+.area-option.selected{border:2px solid var(--moss);background:#f4f7ef;color:var(--deep)}
+.area-option:focus-visible{outline:2px solid var(--moss);outline-offset:2px}
+.field-hint{font-size:11px;color:var(--muted)}
+.save:disabled{opacity:.5;cursor:not-allowed}
+.entry-area{display:flex!important;align-items:center;gap:4px}
+.entry-area svg{width:13px;height:13px;flex:none;color:var(--moss)}
+.filters.area-only{justify-content:flex-start;margin-top:2px}
+@media(max-width:800px){.area-option{min-height:64px}.filters select[aria-label="Área"]{grid-column:1/-1}}

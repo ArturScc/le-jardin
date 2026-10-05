@@ -10,6 +10,7 @@ Centralizar as entradas e saídas da cafeteria e floricultura, mantendo o saldo 
 
 - A pessoa registra um recebimento ou pagamento em poucos passos.
 - A data do lançamento é editável e permite registrar movimentações retroativas.
+- Cada novo lançamento exige a escolha de uma área: **Cozinha** ou **Jardim**. Todos os valores de um lote recebem a mesma área.
 - Um lançamento pode ser repetido em sequência: por exemplo, "Vendas do balcão" por Pix e depois por Dinheiro, sem trocar de tela.
 - Métodos e destinos obrigatórios:
   - Dinheiro → Caixa
@@ -19,9 +20,12 @@ Centralizar as entradas e saídas da cafeteria e floricultura, mantendo o saldo 
 
 ### Consultas
 
-- Recebimentos: lista somente entradas, com filtros por método e destino.
-- Pagamentos: lista somente saídas, com filtros por método e destino.
-- Saldo: período selecionado, todas as movimentações e três visões: saldo Caixa, saldo Banco e total disponível.
+- Recebimentos: lista somente entradas, com filtros por método, destino e área.
+- Pagamentos: lista somente saídas, com filtros por método, destino e área.
+- Saldo: período e área selecionados, todas as movimentações e três visões: saldo Caixa, saldo Banco e total disponível.
+- Gráficos: vendas por método e totais no período e na área escolhidos.
+- Exportações PDF e Excel incluem a área de cada lançamento e respeitam os filtros ativos.
+- Lançamentos anteriores à criação do campo permanecem como **Sem área** e podem ser classificados na edição.
 
 ## Modelo de dados para Supabase
 
@@ -35,7 +39,8 @@ Tabela `financial_entries`:
 | `type` | text | `recebimento` ou `pagamento` |
 | `description` | text | obrigatório |
 | `category` | text | opcional |
-| `amount` | numeric(12,2) | maior que zero |
+| `area` | text | Cozinha ou Jardim; nulo somente em lançamentos antigos |
+| `amount` | numeric(12,2) | zero ou positivo |
 | `payment_method` | text | Dinheiro, Pix, Cartão ou Outro |
 | `destination` | text | Caixa ou Banco |
 
@@ -46,8 +51,8 @@ Regra de integridade: Dinheiro deve usar Caixa; Pix e Cartão devem usar Banco; 
 - Login e múltiplos usuários
 - Conciliação bancária e importação de extratos
 - Estoque, fichas técnicas e relatórios fiscais
-- Edição e exclusão de lançamentos
+- Conciliação automática entre as áreas e o extrato bancário
 
-## Próximo incremento
+## Persistência
 
-Conectar o formulário e as listas ao Supabase, habilitar autenticação e aplicar políticas de acesso por usuário.
+Os lançamentos ficam no Supabase, com acesso público conforme a configuração escolhida para este MVP. Para um banco já em uso, aplicar `supabase/migrations/20261005000000_add_financial_entry_area.sql` antes de publicar esta versão. Para uma instalação nova, usar `supabase/sql-editor-public-setup.sql`.

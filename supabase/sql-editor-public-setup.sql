@@ -8,6 +8,7 @@ create table if not exists public.financial_entries (
   type text not null check (type in ('recebimento', 'pagamento')),
   description text not null check (char_length(trim(description)) > 0),
   category text,
+  area text,
   amount numeric(12, 2) not null check (amount >= 0),
   payment_method text not null check (payment_method in ('Dinheiro', 'Pix', 'Cartão', 'Outro')),
   destination text not null check (destination in ('Caixa', 'Banco')),
@@ -17,6 +18,17 @@ create table if not exists public.financial_entries (
     payment_method = 'Outro'
   )
 );
+
+-- Preserva lançamentos anteriores sem área; a classificação pode ser feita ao editar.
+alter table public.financial_entries
+  add column if not exists area text;
+
+alter table public.financial_entries
+  drop constraint if exists financial_entries_area_check;
+
+alter table public.financial_entries
+  add constraint financial_entries_area_check
+    check (area in ('Cozinha', 'Jardim'));
 
 -- Atualiza versões antigas que ainda tinham Crédito e Débito separados.
 update public.financial_entries
@@ -51,6 +63,7 @@ begin
 end $$;
 
 create index if not exists financial_entries_date_idx on public.financial_entries (entry_date desc);
+create index if not exists financial_entries_area_date_idx on public.financial_entries (area, entry_date desc);
 alter table public.financial_entries enable row level security;
 
 drop policy if exists "Financial entries are visible to their owner" on public.financial_entries;
