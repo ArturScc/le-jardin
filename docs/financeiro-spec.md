@@ -56,3 +56,5 @@ Regra de integridade: Dinheiro deve usar Caixa; Pix e Cartão devem usar Banco; 
 ## Persistência
 
 Os lançamentos ficam no Supabase, com acesso público conforme a configuração escolhida para este MVP. Para um banco já em uso, aplicar `supabase/migrations/20261005000000_add_financial_entry_area.sql` antes de publicar esta versão. Para uma instalação nova, usar `supabase/sql-editor-public-setup.sql`.
+
+O aplicativo consulta o Supabase por `/api/financial-entries` no mesmo domínio do site. A leitura pode repetir uma tentativa após falha transitória de rede; operações de escrita não são repetidas automaticamente para evitar duplicação.

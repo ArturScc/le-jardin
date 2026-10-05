@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 type Destination = "Caixa" | "Banco";
 type Method = "Dinheiro" | "Pix" | "Cartão" | "Outro";
@@ -15,7 +14,6 @@ type BatchLine = { id: number; amount: string };
 
 const methods: Method[] = ["Dinheiro", "Pix", "Cartão", "Outro"];
 const areas: Area[] = ["Cozinha", "Jardim"];
-const entryColumns = "id, entry_date, description, category, area, payment_method, destination, amount, type";
 const ADMIN_PASSWORD = "marcia";
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatDate = (date: string) => new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(new Date(`${date}T12:00:00`));
@@ -27,6 +25,25 @@ const FILTER_CACHE_KEY = "le-jardin-financial-filters";
 type DatabaseStatus = "loading" | "ready" | "missing" | "error";
 type DatabaseRow = { id: string; entry_date: string; description: string; category: string | null; area: Area | null; payment_method: Method; destination: Destination; amount: number | string; type: EntryType };
 const entryFromRow = (row: DatabaseRow): Entry => ({ id: row.id, date: row.entry_date, description: row.description, category: row.category ?? "", area: row.area, method: row.payment_method, destination: row.destination, amount: Number(row.amount), type: row.type });
+
+async function requestEntries<T>(method: "GET" | "POST" | "PATCH" | "DELETE", body?: unknown, id?: string): Promise<T> {
+  const response = await fetch(`/api/financial-entries${id ? `?id=${encodeURIComponent(id)}` : ""}`, {
+    method,
+    cache: "no-store",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({ error: `Serviço indisponível (HTTP ${response.status}).` }));
+  if (!response.ok) throw new Error(result.error ?? `Erro ${response.status} ao consultar os lançamentos.`);
+  return result as T;
+}
+
+function readableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /load failed|failed to fetch|fetch failed|networkerror/i.test(message)
+    ? "Não foi possível conectar. Verifique sua internet e toque em Atualizar."
+    : message;
+}
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("lancamentos");
@@ -62,12 +79,20 @@ export default function Home() {
   const selectedDateTotals = useMemo(() => entries.filter((entry) => entry.date === entryDate).reduce((result, entry) => { result[entry.type] += entry.amount; return result; }, { recebimento: 0, pagamento: 0 }), [entries, entryDate]);
 
   const refreshEntries = useCallback(async () => {
-    if (!supabase) { setDatabaseStatus("missing"); setDatabaseMessage("Conecte as variáveis do Supabase para salvar os lançamentos."); return; }
     setDatabaseStatus("loading");
-    const { data, error } = await supabase.from("financial_entries").select(entryColumns).order("entry_date", { ascending: false });
-    if (error) { setDatabaseStatus("error"); setDatabaseMessage(error.message); return; }
-    setEntries((data ?? []).map((row) => entryFromRow(row as DatabaseRow)));
-    setDatabaseStatus("ready");
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const data = await requestEntries<DatabaseRow[]>("GET");
+        setEntries(data.map(entryFromRow));
+        setDatabaseStatus("ready");
+        setDatabaseMessage("");
+        return;
+      } catch (error) {
+        if (attempt === 0) { await new Promise((resolve) => setTimeout(resolve, 600)); continue; }
+        setDatabaseStatus("error");
+        setDatabaseMessage(readableError(error));
+      }
+    }
   }, []);
 
   useEffect(() => { void refreshEntries(); }, [refreshEntries]);
@@ -97,29 +122,34 @@ export default function Home() {
     if (!description.trim() || !area) return;
     const validLines = batchLines.map((line) => Number(line.amount.replace(",", "."))).filter((amount) => Number.isFinite(amount) && amount > 0);
     if (!validLines.length) return;
-    if (!supabase) { setDatabaseStatus("missing"); setDatabaseMessage("Configure o Supabase antes de salvar."); return; }
     const rows = validLines.map((amount) => ({ entry_date: entryDate, description: description.trim(), category: type === "recebimento" ? "Vendas" : "Despesa", area, payment_method: method, destination, amount, type }));
-    const { data, error } = await supabase.from("financial_entries").insert(rows).select(entryColumns);
-    if (error) { setDatabaseStatus("error"); setDatabaseMessage(error.message); return; }
-    setEntries((current) => [...(data ?? []).map((row) => entryFromRow(row as DatabaseRow)), ...current]);
-    setBatchLines([{ id: Date.now(), amount: "" }]);
-    setDatabaseStatus("ready");
+    try {
+      const data = await requestEntries<DatabaseRow[]>("POST", rows);
+      setEntries((current) => [...data.map(entryFromRow), ...current]);
+      setBatchLines([{ id: Date.now(), amount: "" }]);
+      setDatabaseStatus("ready");
+      setDatabaseMessage("");
+    } catch (error) { setDatabaseStatus("error"); setDatabaseMessage(readableError(error)); }
   }
   function requestEdit(entry: Entry) { setEditing(entry); setPassword(""); setPasswordError(false); setUnlocked(false); }
   function verifyPassword() { if (password === ADMIN_PASSWORD) { setUnlocked(true); setPasswordError(false); } else setPasswordError(true); }
   async function saveEdit(next: Entry) {
-    if (!supabase) return;
-    const { data, error } = await supabase.from("financial_entries").update({ entry_date: next.date, description: next.description, area: next.area, amount: next.amount, payment_method: next.method, destination: next.destination }).eq("id", next.id).select(entryColumns).single();
-    if (error) { setDatabaseStatus("error"); setDatabaseMessage(error.message); return; }
-    setEntries((current) => current.map((entry) => entry.id === next.id ? entryFromRow(data as DatabaseRow) : entry));
-    setEditing(null);
+    try {
+      const data = await requestEntries<DatabaseRow>("PATCH", { entry_date: next.date, description: next.description, area: next.area, amount: next.amount, payment_method: next.method, destination: next.destination }, next.id);
+      setEntries((current) => current.map((entry) => entry.id === next.id ? entryFromRow(data) : entry));
+      setEditing(null);
+      setDatabaseStatus("ready");
+      setDatabaseMessage("");
+    } catch (error) { setDatabaseStatus("error"); setDatabaseMessage(readableError(error)); }
   }
   async function deleteEntry(id: string) {
-    if (!supabase) return;
-    const { error } = await supabase.from("financial_entries").delete().eq("id", id);
-    if (error) { setDatabaseStatus("error"); setDatabaseMessage(error.message); return; }
-    setEntries((current) => current.filter((entry) => entry.id !== id));
-    setEditing(null);
+    try {
+      await requestEntries<{ ok: boolean }>("DELETE", undefined, id);
+      setEntries((current) => current.filter((entry) => entry.id !== id));
+      setEditing(null);
+      setDatabaseStatus("ready");
+      setDatabaseMessage("");
+    } catch (error) { setDatabaseStatus("error"); setDatabaseMessage(readableError(error)); }
   }
   function applyPeriodPreset(preset: Exclude<PeriodPreset, null>) {
     if (periodPreset === preset) { setPeriodPreset(null); return; }
